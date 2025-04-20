@@ -8,7 +8,7 @@
 3. Umair Hussain
 
 # *TODOs*:
-    1. Create a FastAPI app that serves the `ResNet18` architecture for image classification.
+    1. Create a FastAPI app that serves the `ResNet18` model for image classification.
     2. Containerize the FastAPI app:
         - Create a `DockerFile`.
     3. Further tasks -> *`TBD`*
