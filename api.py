@@ -1,12 +1,26 @@
-from fastapi import FastAPI
-from resnet_inference import Model_Inference
+from fastapi import FastAPI, UploadFile
+from resnet_inference import ModelInference
+from PIL import Image
+import io
 
-model_inference = Model_Inference()
+
+# Object of ModelInference class
+model_inference = ModelInference()
 
 app = FastAPI()
 
-@app.get("/predict")
-async def predict():
-    preprocessed_image = model_inference.preprocess_image('/home/shwifty/SOSE25/cloud_computing/ml_serving/n01608432_kite.JPEG')
-    print(preprocessed_image)
-    return {'tensor': preprocessed_image}
+@app.post("/predict")
+async def predict(image:UploadFile):
+    
+    try:
+        contents = await image.read() # This line reads the uploaded image
+        image = Image.open(io.BytesIO(contents)) # contents from uploaded file (bytes) turned to an Image
+
+        preprocessed_image = model_inference.transform_image(image) # transform this image
+        prediction = model_inference.predict(preprocessed_image)
+    
+        return {'prediction': prediction}
+    
+    except Exception as e:
+        return {'Error': e}
+    
