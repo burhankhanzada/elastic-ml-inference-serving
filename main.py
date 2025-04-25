@@ -4,10 +4,16 @@ from PIL import Image
 import io
 
 
+
 # Object of ModelInference class
 model_inference = ModelInference()
 
 app = FastAPI()
+
+
+@app.get("/")
+async def home():
+    return {'message': 'hello'}
 
 @app.post("/predict")
 async def predict(image:UploadFile):
