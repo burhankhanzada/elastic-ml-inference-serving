@@ -91,6 +91,8 @@ Our system consists of:
 # *TODOs*:
     1. Create a FastAPI app that serves the `ResNet18` model for image classification.
     2. Containerize the FastAPI app:
-        - Create a `DockerFile`.
+        - Create a `DockerFile`
+            1. Created a dockerfile for FastAPI app; next is to create docker file for Streamlit app.
+            2. The Frontend (Streamlit app) and Backend (FastAPI app) will be ran in two separate containers and a network will be made for these to communicate -> Possible solution to this is using docker compose which requires us to use a *.yaml* file.
     3. Further tasks -> *`TBD`*
         
