@@ -101,10 +101,6 @@ class ImageLoadTester(BarAzmoon):
         print(f"Successful classifications: {self._BarAzmoon__success_counter.value}")
         
         if self.processed_count > 0:
-            print(f"Average confidence: {self.average_confidence:.1f}%")
-        
-        if self.class_counts:
-            print("\nClass distribution:")
             for class_name, count in sorted(self.class_counts.items(), key=lambda x: x[1], reverse=True):
                 percentage = (count / self._BarAzmoon__success_counter.value) * 100 if self._BarAzmoon__success_counter.value > 0 else 0
                 print(f"  {class_name}: {count} ({percentage:.1f}%)")
