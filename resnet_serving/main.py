@@ -1,5 +1,6 @@
 from fastapi import FastAPI, UploadFile
 from resnet_inference import ModelInference
+from dispatcher.dispatcher import Dispatcher
 from PIL import Image
 import io
 
@@ -7,6 +8,7 @@ import io
 
 # Object of ModelInference class
 model_inference = ModelInference()
+dispatcher = Dispatcher()
 
 app = FastAPI()
 
@@ -14,6 +16,20 @@ app = FastAPI()
 @app.get("/")
 async def home():
     return {'message': 'hello'}
+
+
+app.post("/request_queue")
+async def request_queue():
+    """
+    for request in queue:
+        - post request to the /predict endpoint
+        - get result = {prediction:class + confidence}
+    """
+    
+    
+    pass
+
+
 
 @app.post("/predict")
 async def predict(image:UploadFile):
