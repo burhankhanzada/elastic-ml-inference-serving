@@ -114,14 +114,14 @@ if __name__ == "__main__":
     # Initialize and run the tester
     tester = ImageLoadTester(
         workload=workload,
-        endpoint="http://127.0.0.1:8000/predict",
+        endpoint="http://127.0.0.1:8000/request_queue",
         image_dir="/home/shwifty/SOSE25/cloud_computing/ml_serving/test_images",
         timeout=3  # Wait 3 seconds after sending all requests
     )
     
     # Run the test
     total_requests, successful_requests = tester.start()
-    
+
     # Display detailed results
     tester.display_results()
     
