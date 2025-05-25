@@ -8,7 +8,6 @@ import io
 
 # Object of ModelInference class
 model_inference = ModelInference()
-dispatcher = Dispatcher()
 
 app = FastAPI()
 
@@ -18,13 +17,14 @@ async def home():
     return {'message': 'hello'}
 
 
-app.post("/request_queue")
+@app.post("/request_queue")
 async def request_queue():
     """
     for request in queue:
         - post request to the /predict endpoint
         - get result = {prediction:class + confidence}
     """
+    dispatcher = Dispatcher()
     
     
     pass
