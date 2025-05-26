@@ -117,7 +117,7 @@ if __name__ == "__main__":
     tester = ImageLoadTester(
         workload=workload,
         endpoint="http://127.0.0.1:3000/request_queue",
-        image_dir="/home/shwifty/D-Essential/Msc RCSE/Third Semester/Cloud Computing/ml-elastic-serving/elastic-ml-inference-serving/resnet_serving/imagenet-sample-images",
+        image_dir="/home/shwifty/D-Essential/Msc RCSE/Third Semester/Cloud Computing/ml-elastic-serving/elastic-ml-inference-serving/imagenet-sample-images",
         timeout=3  # Wait 3 seconds after sending all requests
     )
     
