@@ -1,7 +1,7 @@
 from fastapi import FastAPI, UploadFile
 from resnet_inference import ModelInference
-from dispatcher.dispatcher import Dispatcher
 from PIL import Image
+
 import io
 
 
