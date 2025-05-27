@@ -1,7 +1,9 @@
 import asyncio
 import uvicorn
 import io
+import httpx
 
+from io import BytesIO
 from fastapi import FastAPI, UploadFile
 from PIL import Image
 from dispatcher import Dispatcher
@@ -9,36 +11,40 @@ from dispatcher import Dispatcher
 dispatcher = Dispatcher()
 app = FastAPI()
 
+ML_API_ENDPOINT = "http://127.0.0.1:8000/predict"
 
-@app.post("/request_queue")
+@app.post("/add_to_queue")
 async def request_queue(image:UploadFile):
     """
     This endpoint receives the requests from the load_tester and stores them in a queue.
     """
-    _, request_queue = await dispatcher.store_requests(image)
-    queue_size = await dispatcher.qsize(request_queue) 
-    print(f"Inside View of queue:{_}\nQueue Size:{queue_size}")
+    await dispatcher.store_requests(image)
+    queue_size = await dispatcher.qsize() # this is not being used but a good stat.
+    print(queue_size)
+    #predictions = await get_inference(r)
+    return {'status': 'queued', 'queue_size': queue_size}
+    return {'prediction': predictions} # this is just for testing. 
+
+@app.get("/get_predictions")
+async def get_inference():
+    """
+    - get request item from queue
+    - post request item to the /predict endpoint
+    - get result = {prediction:class + confidence}
+    """
+    request_queue = dispatcher.request_queue
+    queue_item = await request_queue.get()
+    print(queue_item)
+    # Convert PIL to bytes
+    img_buffer = BytesIO()
+    queue_item.save(img_buffer, format='JPEG')
+    files = {"image": ("image.jpg", img_buffer.getvalue(), "image/jpeg")}
+    img_buffer.close()
+
+    # httpx format
     
-    return {'prediction': queue_size} # this is just for testing. 
+    async with httpx.AsyncClient() as client:
+        response = await client.post(url= ML_API_ENDPOINT, files=files)
+        print(response.json()['prediction'])
+        return response.json()['prediction']
 
-    # image_bytes = await image.read() # Seems like I got the image filename stored in the variable.
-    # image = Image.open(io.BytesIO(image_bytes))
-    # dispatcher.request = image
-    # print(dispatcher.request)
-    # await dispatcher.request_queue.put(dispatcher.request)
-    # # stores the queue size in the queue size attribute in the dispatcher class
-    # await dispatcher.qsize(dispatcher.request_queue)
-    # print(dispatcher.queue_size)
-    # # print(dispatcher.request_queue._queue)
-    # # return {dispatcher.request: dispatcher.queue_size}
-
-
-# @app.post("/")
-# async def get_inference(queue:dispatcher.request_queue):
-#     """
-#     for request in queue:
-#         - post request to the /predict endpoint
-#         - get result = {prediction:class + confidence}
-#     """
-    
-#     pass
