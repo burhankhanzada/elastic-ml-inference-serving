@@ -13,11 +13,12 @@ class Dispatcher:
 
 
     
-    async def qsize(self):
+    async def qsize(self) -> int:
+        "Returns the size of the queue as an int"
         return self.request_queue.qsize()
 
 
-    async def store_requests(self, request):
+    async def add_to_queue(self, request) -> asyncio.queues.Queue:
         """
         This function receives requests from the load balancer and puts them in a queue using asyncio.
         
