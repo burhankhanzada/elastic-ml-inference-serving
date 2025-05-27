@@ -5,7 +5,9 @@
 		1. Make a docker file for the FastAPI backend -> `done` 
 3. Build your custom load_tester:
 	1. Read the images -> `done`
-	2. transform them according to the API endpoint 
+	2. transform them according to the API endpoint  -> `done`
+    3. Send them to the dispatcher -> `done`
+    4. Modify the exisiting functions for better readability 
 4. Build your Dispatcher:
 	1. I need to store the API post requests from the load_tester in some form of a queue -> `Asyncio` can be another option, simpler than the previous approach also recommended by Salmani.  -> First understand how it works and then devise a plan to implement it in your solution.`Idea: the idea is to get the requests and hold them in a queue and send to a container which is available` : First do this for 1 container (for now its just the local inferencing endpoint) and see how it works. -> `done`
 	2.  Then I need to write an algorithm that would dispatch these requests to the actual Resnet_API.
