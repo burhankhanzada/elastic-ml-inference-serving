@@ -1,5 +1,4 @@
 import asyncio
-import uvicorn
 import io
 
 from fastapi import FastAPI, UploadFile
@@ -11,13 +10,11 @@ class Dispatcher:
         # This queue is going to hold inference requests:
         self.request_queue = asyncio.Queue()
         self.request = None
-        self.queue_size = None
+
 
     
-    async def qsize(self, queue):
-        
-        self.queue_size = queue.qsize()
-        return self.queue_size
+    async def qsize(self):
+        return self.request_queue.qsize()
 
 
     async def store_requests(self, request):
@@ -30,10 +27,9 @@ class Dispatcher:
 
         image_bytes = await request.read() # The reqeuest is basically the image sent by the load tester.
         image = Image.open(io.BytesIO(image_bytes))
-        self.request = image
-        await self.request_queue.put(self.request) # This basically stores the images in the queue
+        await self.request_queue.put(image) # This basically stores the images in the queue
+        return self.request_queue
 
-        return list(self.request_queue._queue), self.request_queue
-
-    async def round_robin(self,):
+    async def round_robin(self, queue):
+        
         pass
