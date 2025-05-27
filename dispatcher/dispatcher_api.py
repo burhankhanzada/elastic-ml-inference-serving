@@ -18,11 +18,15 @@ async def request_queue(image:UploadFile):
     """
     This endpoint receives the requests from the load_tester and stores them in a queue.
     """
-    await dispatcher.store_requests(image)
+    await dispatcher.add_to_queue(image)
     queue_size = await dispatcher.qsize() # this is not being used but a good stat.
-    print(queue_size)
-    #predictions = await get_inference(r)
-    return {'status': 'queued', 'queue_size': queue_size}
+    
+    # print(queue_size)
+    
+    predictions = await get_inference()#
+    # print(prediction_task)
+    
+    # return {'status': 'queued', 'queue_size': queue_size}
     return {'prediction': predictions} # this is just for testing. 
 
 @app.get("/get_predictions")
@@ -34,7 +38,8 @@ async def get_inference():
     """
     request_queue = dispatcher.request_queue
     queue_item = await request_queue.get()
-    print(queue_item)
+    # print(queue_item)
+    
     # Convert PIL to bytes
     img_buffer = BytesIO()
     queue_item.save(img_buffer, format='JPEG')
