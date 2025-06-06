@@ -30,6 +30,6 @@ class Dispatcher:
         await self.request_queue.put(image) # This basically stores the images in the queue
         return self.request_queue
 
-    async def round_robin(self, queue):
+    async def round_robin(self):
         
         pass
