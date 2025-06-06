@@ -111,15 +111,20 @@ class ImageLoadTester(BarAzmoon):
 # Example usage
 if __name__ == "__main__":
     # Define your load pattern - gradual ramp up
-    workload = [7, 12, 0, 31] 
+    workload = []
+    with open('workload.txt', 'r') as f:
+        workload_pattern = f.read().split(' ')
+        for item in workload_pattern:
+            item = int(item)
+            workload.append(item)
     
     # Initialize and run the tester
     tester = ImageLoadTester(
-        workload=workload,
-        endpoint="http://127.0.0.1:3000/add_to_queue",
+        workload=workload[:5],
+        endpoint="http://127.0.0.1:8001/add_to_queue",
         #path for home-desktop: /home/shwifty/D-Essential/Msc RCSE/Third Semester/Cloud Computing/ml-elastic-serving/elastic-ml-inference-serving/imagenet-sample-images
         #path for laptop: /home/shwifty/SOSE25/cloud_computing/ml_serving/test_images
-        image_dir="/home/shwifty/D-Essential/Msc RCSE/Third Semester/Cloud Computing/ml-elastic-serving/elastic-ml-inference-serving/imagenet-sample-images",
+        image_dir="/home/shwifty/SOSE25/cloud_computing/ml_serving/test_images",
         timeout=3  # Wait 3 seconds after sending all requests
     )
     
