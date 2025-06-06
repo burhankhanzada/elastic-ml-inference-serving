@@ -13,6 +13,10 @@ app = FastAPI()
 
 ML_API_ENDPOINT = "http://127.0.0.1:8000/predict"
 
+@app.get("/")
+async def home():
+    return {'message': "hello"}
+
 @app.post("/add_to_queue")
 async def request_queue(image:UploadFile):
     """
@@ -21,13 +25,14 @@ async def request_queue(image:UploadFile):
     await dispatcher.add_to_queue(image)
     queue_size = await dispatcher.qsize() # this is not being used but a good stat.
     
+    print(queue_size)
     # print(queue_size)
     
-    predictions = await get_inference()#
-    # print(prediction_task)
+    # predictions = await get_inference()#
+    # # print(prediction_task)
     
-    # return {'status': 'queued', 'queue_size': queue_size}
-    return {'prediction': predictions} # this is just for testing. 
+    # # return {'status': 'queued', 'queue_size': queue_size}
+    # return {'prediction': predictions} # this is just for testing. 
 
 @app.get("/get_predictions")
 async def get_inference():
