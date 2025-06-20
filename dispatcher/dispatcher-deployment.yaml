@@ -5,7 +5,7 @@ metadata:
   labels:
     app: dispatcher
 spec:
-  replicas: 1  # Single replica to avoid state issues with in-memory queue
+  replicas: 1
   selector:
     matchLabels:
       app: dispatcher
@@ -17,24 +17,26 @@ spec:
       containers:
       - name: dispatcher
         image: dispatcher-app:latest
-        imagePullPolicy: IfNotPresent  # Change to Always for production
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8001
           name: http
+        - containerPort: 9000
+          name: metrics
         env:
         - name: ML_SERVICE_URL
           value: "http://ml-app-service:8000"
         - name: PORT
           value: "8001"
         - name: PYTHONUNBUFFERED
-          value: "1"  # Important for logs in K8s
+          value: "1"
         resources:
           requests:
             memory: "512Mi"
             cpu: "500m"
           limits:
-            memory: "2Gi"  # Increased for image processing
-            cpu: "2"       # Increased for 4 workers + FastAPI
+            memory: "2Gi"
+            cpu: "2"
         livenessProbe:
           httpGet:
             path: /
@@ -68,3 +70,7 @@ spec:
     targetPort: 8001
     protocol: TCP
     name: http
+  - port: 9000
+    targetPort: 9000
+    protocol: TCP
+    name: metrics

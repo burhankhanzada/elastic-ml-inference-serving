@@ -1,0 +1,18 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: dispatcher-monitor
+  namespace: monitoring
+  labels:
+    app: dispatcher
+spec:
+  namespaceSelector:
+    matchNames:
+    - default
+  selector:
+    matchLabels:
+      app: dispatcher
+  endpoints:
+  - port: metrics
+    path: /
+    interval: 15s
