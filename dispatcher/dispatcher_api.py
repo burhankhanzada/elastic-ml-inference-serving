@@ -4,17 +4,34 @@ import io
 import httpx
 import os
 import uuid
+import time
+import psutil
+from prometheus_client import Counter, Gauge, Histogram, generate_latest, REGISTRY
+from prometheus_client.exposition import start_http_server
 from io import BytesIO
-from fastapi import FastAPI, UploadFile
+from fastapi import FastAPI, UploadFile, Request
 from PIL import Image
 from dispatcher import Dispatcher
+
 
 dispatcher = Dispatcher()
 app = FastAPI()
 
+# Define metrics
+REQUEST_COUNT = Counter('fastapi_requests_total', 'Total HTTP requests', ['method', 'endpoint', 'status'])
+QUEUE_SIZE = Gauge('fastapi_queue_size', 'Number of tasks in the ML inference queue')
+CPU_USAGE = Gauge('fastapi_cpu_usage_percent', 'CPU usage percentage')
+MEMORY_USAGE = Gauge('fastapi_memory_usage_percent', 'Memory usage percentage')
+RESPONSE_TIME = Histogram('fastapi_response_time_seconds', 'Request response time in seconds', ['endpoint'])
+
+
 # READ FROM ENVIRONMENT VARIABLE INSTEAD OF HARDCODING
 ML_SERVICE_URL = os.getenv('ML_SERVICE_URL', 'http://127.0.0.1:8000')
 ML_API_ENDPOINT = f"{ML_SERVICE_URL}/predict"
+
+
+# Start Prometheus metrics server
+start_http_server(9000)  # Exposes metrics at http://localhost:9000
 
 # NEW: Add request mapping for producer-consumer
 pending_requests = {}  # Maps request_id -> asyncio.Future
@@ -31,7 +48,8 @@ async def startup_event():
     asyncio.create_task(consumer_worker(worker_id=2))
     asyncio.create_task(consumer_worker(worker_id=3))
     asyncio.create_task(consumer_worker(worker_id=4))
-    print("Started 4 consumer workers")
+    # asyncio.create_task(update_system_metrics())
+    print("Started 4 consumer workers and system metrics")
 
 @app.on_event("shutdown") 
 async def shutdown_event():
@@ -39,6 +57,30 @@ async def shutdown_event():
     global workers_running
     workers_running = False
 
+# Background task to update system metrics
+async def update_system_metrics():
+    while True:
+        CPU_USAGE.set(psutil.cpu_percent(interval=.1))
+        MEMORY_USAGE.set(psutil.virtual_memory().percent)
+        QUEUE_SIZE.set(await dispatcher.qsize())
+        await asyncio.sleep(1)  # Update every second
+
+# Middleware to track response time and request count
+@app.middleware('http')
+async def add_metrics(request: Request, call_next):
+    method = request.method
+    endpoint = request.url.path
+    start_time = time.time()
+    
+    response = await call_next(request)
+    
+    # Record metrics
+    status = response.status_code
+    REQUEST_COUNT.labels(method=method, endpoint=endpoint, status=status).inc()
+    RESPONSE_TIME.labels(endpoint=endpoint).observe(time.time() - start_time)
+    
+    return response
+#================================DISPATCHER===============================================
 async def consumer_worker(worker_id: int):
     """
     Background worker that continuously calls your get_inference function
@@ -95,14 +137,14 @@ async def request_queue(image: UploadFile):
     print("ml service url:{}".format(ML_SERVICE_URL))
     print("ml api endpoint:{}".format(ML_API_ENDPOINT))
     print(f"This is the qsize:{queue_size}")
-    
+    # return {'queue_size': queue_size}
     # NEW: Instead of calling get_inference() directly, wait for worker to process it
     future = asyncio.Future()
     pending_requests[request_id] = future
     
     try:
         # Wait for background worker to process your request
-        predictions = await asyncio.wait_for(future, timeout=30.0)
+        predictions = await asyncio.wait_for(future, timeout=60)
         print(f"Request {request_id[:8]} got result: {predictions}")
         return {'prediction': predictions, 'queue_size': queue_size}
         
@@ -135,3 +177,4 @@ async def get_inference():
     
     print(response.json()['prediction'])
     return response.json()['prediction']
+
