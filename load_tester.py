@@ -2,7 +2,7 @@ import os
 import random
 import re
 from typing import Tuple
-from aiohttp import FormData
+from aiohttp import FormData, ClientTimeout
 from barazmoon import BarAzmoon
 import asyncio
 
@@ -29,6 +29,9 @@ class ImageLoadTester(BarAzmoon):
         self.total_confidence = 0
         self.processed_count = 0
         
+        # FIXED: Aligned timeout configuration - Give workers time to finish
+        self.request_timeout = ClientTimeout(total=80)  # Longer than processing time
+        
     def get_request_data(self) -> Tuple[str, str]:
         # Select a random image from our directory
         image_path = random.choice(self.image_paths)
@@ -42,23 +45,35 @@ class ImageLoadTester(BarAzmoon):
         await asyncio.sleep(delay)
         image_id, image_path = self.get_request_data()
         
+        file_handle = None
         try:
-            # Create form data with the image file
+            # Open file and create form data
+            file_handle = open(image_path, 'rb')
             form_data = FormData()
             form_data.add_field('image', 
-                               open(image_path, 'rb'),
+                               file_handle,
                                filename=os.path.basename(image_path),
                                content_type='image/jpeg')  # Adjust content type if needed
             
-            # Send the request with the file upload
-            async with session.post(self.endpoint, data=form_data) as response:
+            # Send the request with the file upload and timeout
+            async with session.post(self.endpoint, 
+                                  data=form_data, 
+                                  timeout=self.request_timeout) as response:
                 response_json = await response.json(content_type=None)
-                print(response_json)
                 is_success = self.process_response(image_id, response_json)
+                print(response_json)
                 return 1 if is_success else 0
+                
+        except asyncio.TimeoutError:
+            print(f"Timeout error with image {image_id}: Request took longer than {self.request_timeout.total}s")
+            return 0
         except Exception as exc:
             print(f"Error with image {image_id}: {str(exc)}")
             return 0
+        finally:
+            # Ensure file handle is closed
+            if file_handle:
+                file_handle.close()
     
     
     def process_response(self, image_id: str, response: dict) -> bool:
@@ -101,8 +116,10 @@ class ImageLoadTester(BarAzmoon):
         print("\n----- Test Results -----")
         print(f"Total image requests: {self._BarAzmoon__counter}")
         print(f"Successful classifications: {self._BarAzmoon__success_counter.value}")
+        print(f"Average confidence: {self.average_confidence:.1f}%")
         
         if self.processed_count > 0:
+            print(f"\nClassification breakdown:")
             for class_name, count in sorted(self.class_counts.items(), key=lambda x: x[1], reverse=True):
                 percentage = (count / self._BarAzmoon__success_counter.value) * 100 if self._BarAzmoon__success_counter.value > 0 else 0
                 print(f"  {class_name}: {count} ({percentage:.1f}%)")
@@ -120,12 +137,12 @@ if __name__ == "__main__":
     
     # Initialize and run the tester
     tester = ImageLoadTester(
-        workload=workload,
-        endpoint="http://127.0.0.1:32811/add_to_queue",
+        workload=list(map(lambda r: int(r / 1.5), workload)),
+        endpoint="http://127.0.0.1:39875/add_to_queue",
         #path for home-desktop: /home/shwifty/D-Essential/Msc RCSE/Third Semester/Cloud Computing/ml-elastic-serving/elastic-ml-inference-serving/imagenet-sample-images
         #path for laptop: /home/shwifty/SOSE25/cloud_computing/ml_serving/test_images
         image_dir="/home/shwifty/SOSE25/cloud_computing/ml_serving/test_images",
-        timeout=10  # Wait 3 seconds after sending all requests
+        timeout=10  # FIXED: Longer than request timeout to allow processing completion
     )
     
     # Run the test
