@@ -5,7 +5,7 @@ FROM python:3.11.12-slim
 WORKDIR /app
 
 COPY requirements.txt .
-COPY dispatcher/dispatcher_api.py .
+COPY dispatcher/main.py .
 COPY dispatcher/dispatcher.py .
 
 # Install other dependencies
