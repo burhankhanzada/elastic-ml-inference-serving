@@ -20,5 +20,7 @@ RUN python -c "from torchvision.models import resnet18; resnet18(weights='IMAGEN
 COPY ml_app/main.py .
 COPY ml_app/resnet_inference.py .
 
+EXPOSE 8000 9001
+
 # Run the application
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
