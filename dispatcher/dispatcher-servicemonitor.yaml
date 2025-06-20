@@ -2,9 +2,10 @@ apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: dispatcher-monitor
-  namespace: monitoring
+  namespace: default
   labels:
     app: dispatcher
+    release: prometheus  # Match Helm release label
 spec:
   namespaceSelector:
     matchNames:
