@@ -36,6 +36,7 @@ start_http_server(9000)  # Exposes metrics at http://localhost:9000
 
 # NEW: Add request mapping for producer-consumer
 pending_requests = {}  # Maps request_id -> asyncio.Future
+pending_requests_lock = asyncio.Lock()  # Prevent race conditions
 workers_running = False
 
 @app.on_event("startup")
@@ -101,27 +102,26 @@ async def consumer_worker(worker_id: int):
     while workers_running:
         try:
             # Call your existing get_inference function
-            result = await get_inference()
+            result, request_id = await get_inference()  # Now returns (result, request_id)
             print(f"Worker {worker_id} got result: {result}")
             
-            # Find the oldest pending request and give it this result
-            if pending_requests:
-                # Get the first (oldest) pending request
-                request_id = next(iter(pending_requests))
-                future = pending_requests.pop(request_id)
+            # Find the correct pending request and give it this result (thread-safe)
+            async with pending_requests_lock:
+                future = pending_requests.pop(request_id, None)
                 
-                if not future.done():
+                if future and not future.done():
                     future.set_result(result)
                     print(f"Worker {worker_id} delivered result to request {request_id[:8]}")
             
         except Exception as e:
             print(f"Worker {worker_id} error: {e}")
             # If there's an error, still try to resolve a pending request
-            if pending_requests:
-                request_id = next(iter(pending_requests))
-                future = pending_requests.pop(request_id)
-                if not future.done():
-                    future.set_exception(e)
+            async with pending_requests_lock:
+                if pending_requests:
+                    request_id = next(iter(pending_requests))
+                    future = pending_requests.pop(request_id)
+                    if not future.done():
+                        future.set_exception(e)
         
         # Small delay to prevent busy loop
         await asyncio.sleep(0.1)
@@ -141,8 +141,8 @@ async def request_queue(image: UploadFile):
     # Generate unique request ID
     request_id = str(uuid.uuid4())
     
-    # Your original code (unchanged):
-    await dispatcher.add_to_queue(image)
+    # Your original code (minimal change):
+    await dispatcher.add_to_queue(image, request_id)  # Pass request_id for correlation
     queue_size = await dispatcher.qsize()  # this is not being used but a good stat.
     print("ml service url:{}".format(ML_SERVICE_URL))
     print("ml api endpoint:{}".format(ML_API_ENDPOINT))
@@ -150,20 +150,22 @@ async def request_queue(image: UploadFile):
     # return {'queue_size': queue_size}
     # NEW: Instead of calling get_inference() directly, wait for worker to process it
     future = asyncio.Future()
-    pending_requests[request_id] = future
+    async with pending_requests_lock:  # Thread-safe access
+        pending_requests[request_id] = future
     
     try:
         # Wait for background worker to process your request
-        predictions = await asyncio.wait_for(future, timeout=5)
+        predictions = await asyncio.wait_for(future, timeout=70)  # Increased from 5 to 70
         print(f"Request {request_id[:8]} got result: {predictions}")
         return {'prediction': predictions, 'queue_size': queue_size}
         
     except asyncio.TimeoutError:
         # Clean up on timeout
-        pending_requests.pop(request_id, None)
+        async with pending_requests_lock:  # Thread-safe cleanup
+            pending_requests.pop(request_id, None)
         return {'error': 'Request timeout', 'queue_size': queue_size}
 
-# Your original get_inference function (unchanged!)
+# Your original get_inference function (minimal changes!)
 async def get_inference():
     """
     CONSUMER: Your original function, now called by background workers
@@ -172,7 +174,7 @@ async def get_inference():
     - get result = {prediction:class + confidence}
     """
     request_queue = dispatcher.request_queue
-    queue_item = await request_queue.get()
+    queue_item, request_id = await request_queue.get()  # Now get tuple (image, request_id)
     # print(queue_item)
     
     # Convert PIL to bytes
@@ -186,4 +188,4 @@ async def get_inference():
         response = await client.post(url=ML_API_ENDPOINT, files=files)
     
     print(response.json()['prediction'])
-    return response.json()['prediction']
+    return response.json()['prediction'], request_id  # Return both result and request_id
