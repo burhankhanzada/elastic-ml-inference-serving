@@ -18,7 +18,7 @@ class Dispatcher:
         return self.request_queue.qsize()
 
 
-    async def add_to_queue(self, request) -> asyncio.queues.Queue:
+    async def add_to_queue(self, request, request_id) -> asyncio.queues.Queue:
         """
         This function receives requests from the load balancer and puts them in a queue using asyncio.
         
@@ -28,7 +28,7 @@ class Dispatcher:
 
         image_bytes = await request.read() # The reqeuest is basically the image sent by the load tester.
         image = Image.open(io.BytesIO(image_bytes))
-        await self.request_queue.put(image) # This basically stores the images in the queue
+        await self.request_queue.put((image, request_id)) # Store tuple instead of just image
         return self.request_queue
 
     async def round_robin(self):
