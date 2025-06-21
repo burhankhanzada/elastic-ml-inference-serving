@@ -30,7 +30,7 @@ class ImageLoadTester(BarAzmoon):
         self.processed_count = 0
         
         # FIXED: Aligned timeout configuration - Give workers time to finish
-        self.request_timeout = ClientTimeout(total=80)  # Longer than processing time
+        # self.request_timeout = ClientTimeout(total=80)  # Longer than processing time
         
     def get_request_data(self) -> Tuple[str, str]:
         # Select a random image from our directory
@@ -58,10 +58,9 @@ class ImageLoadTester(BarAzmoon):
             # Send the request with the file upload and timeout
             async with session.post(self.endpoint, 
                                   data=form_data, 
-                                  timeout=self.request_timeout) as response:
+                                  ) as response:
                 response_json = await response.json(content_type=None)
                 is_success = self.process_response(image_id, response_json)
-                print(response_json)
                 return 1 if is_success else 0
                 
         except asyncio.TimeoutError:
@@ -78,6 +77,7 @@ class ImageLoadTester(BarAzmoon):
     
     def process_response(self, image_id: str, response: dict) -> bool:
         try:
+            print(response)
             # Check if the response has the expected format
             if 'prediction' not in response:
                 print(f"Error for image {image_id}: Invalid response format")
@@ -128,21 +128,38 @@ class ImageLoadTester(BarAzmoon):
 # Example usage
 if __name__ == "__main__":
     # Define your load pattern - gradual ramp up
-    workload = []
+    experiment_workload = []
+    negative_workload = []
+    stress_workload = []
+
     with open('workload.txt', 'r') as f:
         workload_pattern = f.read().split(' ')
+
+        count = 0
+        neg_count = 0
+        stress_count = 0
         for item in workload_pattern:
             item = int(item)
-            workload.append(item)
-    
+            
+            if item < 20:
+                negative_workload.append(item)
+                neg_count += item
+            else:
+                stress_workload.append(item)
+                stress_count += item
+            
+            experiment_workload.append(item)
+            count += item
+    # list(map(lambda r: int(r / 2), negative_workload))[:]
     # Initialize and run the tester
     tester = ImageLoadTester(
-        workload=list(map(lambda r: int(r / 1.5), workload)),
-        endpoint="http://127.0.0.1:39875/add_to_queue",
+        # workload= list(map(lambda r: int(r / 2), negative_workload))[:] ,
+        workload= [4] * 100,
+        endpoint="http://127.0.0.1:41191/add_to_queue",
         #path for home-desktop: /home/shwifty/D-Essential/Msc RCSE/Third Semester/Cloud Computing/ml-elastic-serving/elastic-ml-inference-serving/imagenet-sample-images
         #path for laptop: /home/shwifty/SOSE25/cloud_computing/ml_serving/test_images
         image_dir="/home/shwifty/SOSE25/cloud_computing/ml_serving/test_images",
-        timeout=10  # FIXED: Longer than request timeout to allow processing completion
+        timeout=30 # FIXED: Longer than request timeout to allow processing completion
     )
     
     # Run the test
