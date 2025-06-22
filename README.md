@@ -62,6 +62,7 @@ Load Tester → Dispatcher Service → ML Inference Service
    ```bash
    git clone https://github.com/your-username/elastic-ml-inference.git
    cd elastic-ml-inference
+   git clone https://github.com/EliSchwartz/imagenet-sample-images.git
    ```
 
 2. **Set up Python environment**
@@ -85,13 +86,13 @@ Load Tester → Dispatcher Service → ML Inference Service
 1. **Start ML Inference Service**
    ```bash
    cd ml_app
-   uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+   uvicorn main:app --port 8000
    ```
 
 2. **Start Dispatcher Service** (in new terminal)
    ```bash
    cd dispatcher
-   uvicorn dispatcher_api:app --host 0.0.0.0 --port 8001 --reload
+   uvicorn main:app --port 8001
    ```
 
 3. **Run Load Test** (in new terminal)

@@ -155,10 +155,10 @@ if __name__ == "__main__":
     tester = ImageLoadTester(
         # workload= list(map(lambda r: int(r / 2), negative_workload))[:] ,
         workload= [4] * 100,
-        endpoint="http://127.0.0.1:41191/add_to_queue",
+        endpoint="http://localhost:8001/add_to_queue",
         #path for home-desktop: /home/shwifty/D-Essential/Msc RCSE/Third Semester/Cloud Computing/ml-elastic-serving/elastic-ml-inference-serving/imagenet-sample-images
         #path for laptop: /home/shwifty/SOSE25/cloud_computing/ml_serving/test_images
-        image_dir="/home/shwifty/SOSE25/cloud_computing/ml_serving/test_images",
+        image_dir="imagenet-sample-images",
         timeout=30 # FIXED: Longer than request timeout to allow processing completion
     )
     

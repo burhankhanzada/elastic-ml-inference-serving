@@ -1,0 +1,9 @@
+.venv/
+
+.python-version
+
+barazmoon/__init__.py
+barazmoon/__pycache__/
+
+dispatcher/__pycache__/
+ml_app/__pycache__/
