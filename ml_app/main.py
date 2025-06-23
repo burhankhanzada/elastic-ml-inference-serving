@@ -29,39 +29,39 @@ logger = logging.getLogger(__name__)
 
 
 
-# def update_system_metrics():
-#     while True:
-#         try:
-#             cpu_percent = psutil.cpu_percent(interval=0.1)
-#             memory_percent = psutil.virtual_memory().percent
-#             CPU_USAGE.set(cpu_percent)
-#             MEMORY_USAGE.set(memory_percent)
-#             logger.info(f"CPU: {cpu_percent}%, Memory: {memory_percent}%")
-#         except Exception as e:
-#             logger.error(f"Error in update_system_metrics: {e}")
-#         time.sleep(1)  # Synchronous sleep
+def update_system_metrics():
+    while True:
+        try:
+            cpu_percent = psutil.cpu_percent(interval=0.1)
+            memory_percent = psutil.virtual_memory().percent
+            CPU_USAGE.set(cpu_percent)
+            MEMORY_USAGE.set(memory_percent)
+            logger.info(f"CPU: {cpu_percent}%, Memory: {memory_percent}%")
+        except Exception as e:
+            logger.error(f"Error in update_system_metrics: {e}")
+        time.sleep(1)  # Synchronous sleep
 
 
-# @app.on_event('startup')
-# def startup():
-#     threading.Thread(target=update_system_metrics, daemon=True).start()
-#     logger.info("ML app metrics initiated")
+@app.on_event('startup')
+def startup():
+    threading.Thread(target=update_system_metrics, daemon=True).start()
+    logger.info("ML app metrics initiated")
 
-# # Middleware to track response time and request count
-# @app.middleware('http')
-# async def add_metrics(request: Request, call_next):
-#     method = request.method
-#     endpoint = request.url.path
-#     start_time = time.time()
+# Middleware to track response time and request count
+@app.middleware('http')
+async def add_metrics(request: Request, call_next):
+    method = request.method
+    endpoint = request.url.path
+    start_time = time.time()
     
-#     response = await call_next(request)
+    response = await call_next(request)
     
-#     # Record metrics
-#     status = response.status_code
-#     REQUEST_COUNT.labels(method=method, endpoint=endpoint, status=status).inc()
-#     RESPONSE_TIME.labels(endpoint=endpoint).observe(time.time() - start_time)
+    # Record metrics
+    status = response.status_code
+    REQUEST_COUNT.labels(method=method, endpoint=endpoint, status=status).inc()
+    RESPONSE_TIME.labels(endpoint=endpoint).observe(time.time() - start_time)
     
-#     return response
+    return response
 
 # ML Inference Endpoints
 @app.get("/")
