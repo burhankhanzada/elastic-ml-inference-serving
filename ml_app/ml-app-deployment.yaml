@@ -30,11 +30,8 @@ spec:
           value: "http://dispatcher-service:8001"
         resources:
           requests:
-            cpu: 1
-            memory: 512Mi
-          limits: 
-            cpu: 1
-            memory: 4Gi
+            cpu: 1  # DON"T CHANGE EVEN THOUGH IT LOOKS TEMPTING - I KNOW YOU WANT TO BUT DON"T :)
+            memory: 1Gi
 ---
 apiVersion: v1
 kind: Service
