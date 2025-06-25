@@ -4,6 +4,12 @@ FROM python:3.11.12-slim
 # Working directory
 WORKDIR /app
 
+# ENV Variable:
+ENV OMP_NUM_THREADS=1
+ENV MKL_NUM_THREADS=1
+ENV OPENBLAS_NUM_THREADS=1
+ENV NUMEXPR_NUM_THREADS=1
+
 # Copy requirements from parent directory
 COPY requirements.txt .
 
