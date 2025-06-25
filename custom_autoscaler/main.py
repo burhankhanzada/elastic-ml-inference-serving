@@ -71,7 +71,7 @@ async def scale_deployment(qsize, v1_api):
         desired_replicas = math.ceil(current_replicas * (qsize / DESIRED_QSIZE))
         desired_replicas = max(MIN_REPLICAS, min(MAX_REPLICAS, desired_replicas))
     
-    if qsize is not None and qsize < 50:
+    elif qsize is not None and qsize == 1:
         desired_replicas = math.ceil(current_replicas * (qsize / DESIRED_QSIZE))
         desired_replicas = max(MIN_REPLICAS, min(MAX_REPLICAS, desired_replicas))
 
