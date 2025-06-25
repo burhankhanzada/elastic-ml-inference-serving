@@ -30,7 +30,7 @@ class ImageLoadTester(BarAzmoon):
         self.processed_count = 0
         
         # FIXED: Aligned timeout configuration - Give workers time to finish
-        # self.request_timeout = ClientTimeout(total=80)  # Longer than processing time
+        self.request_timeout = ClientTimeout(total=80)  # Longer than processing time
         
     def get_request_data(self) -> Tuple[str, str]:
         # Select a random image from our directory
@@ -58,7 +58,7 @@ class ImageLoadTester(BarAzmoon):
             # Send the request with the file upload and timeout
             async with session.post(self.endpoint, 
                                   data=form_data, 
-                                  ) as response:
+                                  timeout=self.request_timeout) as response:
                 response_json = await response.json(content_type=None)
                 is_success = self.process_response(image_id, response_json)
                 return 1 if is_success else 0
@@ -154,12 +154,12 @@ if __name__ == "__main__":
     # Initialize and run the tester
     tester = ImageLoadTester(
         # workload= list(map(lambda r: int(r / 2), negative_workload))[:] ,
-        workload= [4] * 100,
-        endpoint="http://127.0.0.1:41191/add_to_queue",
+        workload= experiment_workload,
+        endpoint="http://127.0.0.1:45287/add_to_queue",
         #path for home-desktop: /home/shwifty/D-Essential/Msc RCSE/Third Semester/Cloud Computing/ml-elastic-serving/elastic-ml-inference-serving/imagenet-sample-images
         #path for laptop: /home/shwifty/SOSE25/cloud_computing/ml_serving/test_images
-        image_dir="/home/shwifty/SOSE25/cloud_computing/ml_serving/test_images",
-        timeout=30 # FIXED: Longer than request timeout to allow processing completion
+        image_dir="/home/shwifty/D-Essential/Msc RCSE/Third Semester/Cloud Computing/ml-elastic-serving/elastic-ml-inference-serving/imagenet-sample-images",
+        timeout=30# FIXED: Longer than request timeout to allow processing completion
     )
     
     # Run the test
