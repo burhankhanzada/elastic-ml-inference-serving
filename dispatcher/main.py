@@ -1,12 +1,13 @@
 import asyncio
-import httpx
+import aiohttp
 import os
 import uuid
 import time
-
+import httpx
 import psutil
 import logging
 
+from aiohttp import ClientSession, TCPConnector
 from prometheus_client import Counter, Gauge, Histogram
 from prometheus_client.exposition import start_http_server
 from io import BytesIO
@@ -30,6 +31,8 @@ RESPONSE_TIME = Histogram('dispatcher_response_time_seconds', 'Request response 
 ML_SERVICE_URL = os.getenv('ML_SERVICE_URL', 'http://127.0.0.1:8000')
 ML_API_ENDPOINT = f"{ML_SERVICE_URL}/predict"
 
+# Shared HTTP client for connection pooling
+HTTP_CLIENT = None
 
 # Start Prometheus metrics server
 start_http_server(9000)  # Exposes metrics at http://localhost:9000
@@ -42,22 +45,36 @@ workers_running = False
 @app.on_event("startup")
 async def startup_event():
     """Start background consumer workers"""
-    global workers_running
+    global workers_running, HTTP_CLIENT
     workers_running = True
+    
+    # Create shared HTTP client with timeout and connection pooling
+    HTTP_CLIENT = httpx.AsyncClient(
+        timeout=httpx.Timeout(30.0),
+        limits=httpx.Limits(max_connections=20, max_keepalive_connections=0)
+    )
     
     # Start 2 background workers that will call your get_inference function
     asyncio.create_task(consumer_worker(worker_id=1))
     asyncio.create_task(consumer_worker(worker_id=2))
     asyncio.create_task(consumer_worker(worker_id=3))
     asyncio.create_task(consumer_worker(worker_id=4))
+    asyncio.create_task(consumer_worker(worker_id=5))
+    asyncio.create_task(consumer_worker(worker_id=6))
+    asyncio.create_task(consumer_worker(worker_id=7))
+    asyncio.create_task(consumer_worker(worker_id=8))
+    asyncio.create_task(consumer_worker(worker_id=9))
+    asyncio.create_task(consumer_worker(worker_id=10))    
     asyncio.create_task(update_system_metrics())
-    print("Started 4 consumer workers and system metrics")
+    print("Started 10 consumer workers and system metrics")
 
 @app.on_event("shutdown") 
 async def shutdown_event():
     """Stop workers"""
-    global workers_running
+    global workers_running, HTTP_CLIENT
     workers_running = False
+    if HTTP_CLIENT:
+        await HTTP_CLIENT.aclose()
 
 # Background task to update system metrics
 logging.basicConfig(level=logging.INFO)
@@ -155,7 +172,7 @@ async def request_queue(image: UploadFile):
     
     try:
         # Wait for background worker to process your request
-        predictions = await asyncio.wait_for(future, timeout=70)  # Increased from 5 to 70
+        predictions = await asyncio.wait_for(future, timeout=60)  # Increased from 5 to 70
         print(f"Request {request_id[:8]} got result: {predictions}")
         return {'prediction': predictions, 'queue_size': queue_size}
         
@@ -165,7 +182,6 @@ async def request_queue(image: UploadFile):
             pending_requests.pop(request_id, None)
         return {'error': 'Request timeout', 'queue_size': queue_size}
 
-# Your original get_inference function (minimal changes!)
 async def get_inference():
     """
     CONSUMER: Your original function, now called by background workers
@@ -183,9 +199,8 @@ async def get_inference():
     files = {"image": ("image.jpg", img_buffer.getvalue(), "image/jpeg")}
     img_buffer.close()
     
-    # httpx format
-    async with httpx.AsyncClient() as client:
-        response = await client.post(url=ML_API_ENDPOINT, files=files)
+    # Use shared HTTP client with timeout
+    response = await HTTP_CLIENT.post(url=ML_API_ENDPOINT, files=files)
     
     print(response.json()['prediction'])
     return response.json()['prediction'], request_id  # Return both result and request_id

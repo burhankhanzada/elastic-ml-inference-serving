@@ -32,9 +32,6 @@ spec:
           value: "1"
         resources:
           requests:
-            memory: "512Mi"
-            cpu: "500m"
-          limits:
             memory: "2Gi"
             cpu: "2"
         livenessProbe:

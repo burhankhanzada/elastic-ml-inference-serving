@@ -2,109 +2,118 @@ import asyncio
 import httpx
 import logging
 from kubernetes import client, config
+import time
+import math
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+# Configuration
+PROMETHEUS_URL = "http://prometheus-operated.monitoring.svc:9090"
+DEPLOYMENT_NAME = "ml-app-deployment"
+NAMESPACE = "default"
+POLL_INTERVAL = 15
+COOLDOWN_SECONDS = 60
+MIN_REPLICAS = 1
+MAX_REPLICAS = 6
+DESIRED_QSIZE = 50
+
 async def get_metric(query):
-    """Get a single metric value from Prometheus."""
-    prometheus_url = "http://prometheus-operated.monitoring.svc:9090/api/v1/query"
-    logger.info(f"Attempting to fetch metric: {query} at {prometheus_url}")
-    
+    """Get qsize from Prometheus."""
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get(prometheus_url, params={"query": query}, timeout=5)
+            response = await client.get(f"{PROMETHEUS_URL}/api/v1/query", params={"query": query}, timeout=5)
             response.raise_for_status()
             result = response.json()
-            
             if result["status"] == "success" and result["data"]["result"]:
-                value = float(result["data"]["result"][0]["value"][1])
-                logger.info(f"Metric {query}: {value}")
-                return value
-            
-            logger.warning(f"No data for query: {query}, result: {result}")
+                return float(result["data"]["result"][0]["value"][1])
             return None
-            
-    except httpx.ConnectError as e:
-        logger.error(f"Connection error for {query} at {prometheus_url}: {e}")
-        return None
-    except httpx.HTTPStatusError as e:
-        logger.error(f"HTTP error for {query} at {prometheus_url}: Status {e.response.status_code}, {e}")
-        return None
     except Exception as e:
-        logger.error(f"Unexpected error for {query} at {prometheus_url}: {e}")
+        logger.error(f"Error fetching metric {query}: {e}")
         return None
 
-async def scale_deployment(qsize, cpu, memory):
-    """Scale ml-app-deployment based on metrics."""
-    logger.info("Attempting to scale deployment")
-    
-    config.load_incluster_config()
-    apps_v1 = client.AppsV1Api()
-    name = "ml-app-deployment"
-    namespace = "default"
-    
-    # Get current replicas
+async def check_replicas_ready(v1_api):
+    """Check if all ml-app-deployment pods are ready."""
     try:
-        deployment = apps_v1.read_namespaced_deployment(name, namespace)
+        pods = v1_api.list_namespaced_pod(
+            namespace=NAMESPACE,
+            label_selector=f"app=ml-app"
+        )
+        for pod in pods.items:
+            for condition in pod.status.conditions or []:
+                if condition.type == "Ready" and condition.status != "True":
+                    return False
+        return True
+    except client.exceptions.ApiException as e:
+        logger.error(f"Error checking pod readiness: {e}")
+        return False
+
+async def scale_deployment(qsize, v1_api):
+    """Scale deployment based on qsize."""
+    global last_scale_time
+    if time.time() - last_scale_time < COOLDOWN_SECONDS:
+        return
+
+    # Check if all replicas are ready
+    if not await check_replicas_ready(v1_api):
+        return
+
+    try:
+        deployment = apps_v1.read_namespaced_deployment(DEPLOYMENT_NAME, NAMESPACE)
         current_replicas = deployment.spec.replicas
-        logger.info(f"Current replicas: {current_replicas}")
-    except Exception as e:
-        logger.error(f"Failed to get current replicas: {e}")
-        current_replicas = 1  # fallback
-    
-    # Calculate desired replicas based on all metrics
+    except client.exceptions.ApiException as e:
+        logger.error(f"Error getting replicas: {e}")
+        current_replicas = 1
+
     desired_replicas = current_replicas
+    if qsize is not None and qsize > 0:
+        desired_replicas = math.ceil(current_replicas * (qsize / DESIRED_QSIZE))
+        desired_replicas = max(MIN_REPLICAS, min(MAX_REPLICAS, desired_replicas))
     
-    # Scale up conditions
-    if (qsize and qsize > 50) or (cpu and cpu > 70) or (memory and memory > 80):
-        desired_replicas = min(current_replicas + 1, 4)  # max 4 replicas
-        logger.info(f"Scale UP triggered - Queue: {qsize}, CPU: {cpu}%, Memory: {memory}%")
-    
-    # Scale down conditions
-    elif (qsize is not None and qsize < 10) and (cpu is not None and cpu < 30) and (memory is not None and memory < 40):
-        desired_replicas = max(current_replicas - 1, 1)  # min 1 replica
-        logger.info(f"Scale DOWN triggered - Queue: {qsize}, CPU: {cpu}%, Memory: {memory}%")
-    
-    else:
-        logger.info(f"No scaling needed - Queue: {qsize}, CPU: {cpu}%, Memory: {memory}%")
-    
-    # Apply scaling if needed
+    elif qsize is not None and qsize == 1:
+        desired_replicas = math.ceil(current_replicas * (qsize / DESIRED_QSIZE))
+        desired_replicas = max(MIN_REPLICAS, min(MAX_REPLICAS, desired_replicas))
+
     if desired_replicas != current_replicas:
-        body = {"spec": {"replicas": desired_replicas}}
         try:
-            apps_v1.patch_namespaced_deployment_scale(name, namespace, body)
-            logger.info(f"Scaled {name} from {current_replicas} to {desired_replicas} replicas")
-        except client.rest.ApiException as e:
-            logger.error(f"Failed to scale {name}: {e}")
+            apps_v1.patch_namespaced_deployment_scale(
+                name=DEPLOYMENT_NAME,
+                namespace=NAMESPACE,
+                body={"spec": {"replicas": desired_replicas}}
+            )
+            logging.getLogger().setLevel(logging.INFO)
+            logger.info(f"Scaled {DEPLOYMENT_NAME} from {current_replicas} to {desired_replicas} replicas")
+            logging.getLogger().setLevel(logging.ERROR)
+            last_scale_time = time.time()
+        except client.exceptions.ApiException as e:
+            logger.error(f"Error scaling deployment: {e}")
     else:
+        logging.getLogger().setLevel(logging.INFO)
         logger.info("No scaling action taken")
+        logging.getLogger().setLevel(logging.ERROR)
 
 async def main():
-    logger.info("Starting main loop")
-    
+    """Run autoscaler."""
     qsize = await get_metric('dispatcher_queue_size{job="dispatcher-service", namespace="default"}')
-    cpu = await get_metric('ml_app_cpu_usage_percent{job="ml-app-service", namespace="default"}')
-    memory = await get_metric('ml_app_memory_usage_percent{job="ml-app-service", namespace="default"}')
-    
-    logger.info(f"Queue Size: {qsize}, CPU: {cpu}, Memory: {memory}")
-    
-    await scale_deployment(qsize, cpu, memory)
+    await scale_deployment(qsize, v1_api)
 
 if __name__ == "__main__":
     logger.info("Entering infinite loop")
+    try:
+        config.load_incluster_config()
+    except config.ConfigException:
+        logger.error("Failed to load in-cluster config, falling back to kubeconfig")
+        config.load_kube_config()
+    apps_v1 = client.AppsV1Api()
+    v1_api = client.CoreV1Api()
+    last_scale_time = 0
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    
     while True:
         try:
             loop.run_until_complete(main())
         except Exception as e:
             logger.error(f"Error in main loop: {e}")
-        
         logger.info(f"Sleeping for 15 seconds at {loop.time()}")
-        loop.run_until_complete(asyncio.sleep(15))  # Run every minute
+        loop.run_until_complete(asyncio.sleep(15))
