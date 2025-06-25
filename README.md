@@ -125,6 +125,7 @@ Load Tester → Dispatcher Service → ML Inference Service
 
 1. **Deploy ML service**
    ```bash
+   minikube start
    kubectl apply -f ml_app/ml-app-deployment.yaml
    ```
 
