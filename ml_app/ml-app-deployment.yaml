@@ -36,11 +36,6 @@ spec:
           httpGet:
             path: /    # Create a simple health endpoint
             port: 8000
-          initialDelaySeconds: 5
-          periodSeconds: 10
-          timeoutSeconds: 2
-          failureThreshold: 3
-          successThreshold: 1
 ---
 apiVersion: v1
 kind: Service
