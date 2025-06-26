@@ -14,7 +14,7 @@ PROMETHEUS_URL = "http://prometheus-operated.monitoring.svc:9090"
 DEPLOYMENT_NAME = "ml-app-deployment"
 NAMESPACE = "default"
 POLL_INTERVAL = 15
-COOLDOWN_SECONDS = 60
+COOLDOWN_SECONDS = 5
 MIN_REPLICAS = 1
 MAX_REPLICAS = 6
 DESIRED_QSIZE = 50
@@ -53,10 +53,12 @@ async def scale_deployment(qsize, v1_api):
     """Scale deployment based on qsize."""
     global last_scale_time
     if time.time() - last_scale_time < COOLDOWN_SECONDS:
+        logger.info("Skipping scaling due to cooldown period")
         return
 
     # Check if all replicas are ready
     if not await check_replicas_ready(v1_api):
+        logger.info("Skipping scaling as not all pods are ready")
         return
 
     try:
@@ -67,12 +69,17 @@ async def scale_deployment(qsize, v1_api):
         current_replicas = 1
 
     desired_replicas = current_replicas
-    if qsize is not None and qsize > 0:
-        desired_replicas = math.ceil(current_replicas * (qsize / DESIRED_QSIZE))
-        desired_replicas = max(MIN_REPLICAS, min(MAX_REPLICAS, desired_replicas))
-    
-    elif qsize is not None and qsize == 1:
-        desired_replicas = math.ceil(current_replicas * (qsize / DESIRED_QSIZE))
+    if qsize is not None:
+        if qsize == 0:
+            # Explicitly scale to MIN_REPLICAS when queue is empty
+            desired_replicas = MIN_REPLICAS
+        elif qsize > DESIRED_QSIZE:
+            # Scale up for high queue sizes
+            desired_replicas = math.ceil(current_replicas * (qsize / DESIRED_QSIZE))
+        elif qsize <= DESIRED_QSIZE:
+            # Gradual downscaling for low queue sizes
+            desired_replicas = max(MIN_REPLICAS, math.ceil(current_replicas * (qsize / DESIRED_QSIZE)))
+        # Ensure replicas stay within bounds
         desired_replicas = max(MIN_REPLICAS, min(MAX_REPLICAS, desired_replicas))
 
     if desired_replicas != current_replicas:
@@ -92,7 +99,6 @@ async def scale_deployment(qsize, v1_api):
         logging.getLogger().setLevel(logging.INFO)
         logger.info("No scaling action taken")
         logging.getLogger().setLevel(logging.ERROR)
-
 async def main():
     """Run autoscaler."""
     qsize = await get_metric('dispatcher_queue_size{job="dispatcher-service", namespace="default"}')
