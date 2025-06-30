@@ -1,240 +1,353 @@
 # Elastic ML Inference Serving
+**Cloud Computing Course Project - TU Ilmenau**
 
-**Cloud Computing Project - Summer Semester 2025**
+A production-ready machine learning inference serving system with **custom autoscaling** capabilities for Kubernetes. This project implements elastic image classification using ResNet18 with intelligent queue-based load balancing and comprehensive monitoring, designed to outperform standard Kubernetes HPA.
 
-## Team Members
-- Muhammad Ozair
-- Kamil Hassaan  
-- Umair Hussain
+## 🎯 Project Objectives
 
-## Project Overview
+- **Understand cloud elasticity**: Learn how to react when services are under/over-utilized
+- **Master Container-as-a-Service (CaaS)**: Hands-on experience with Kubernetes orchestration
+- **Implement custom autoscaling**: Design autoscaler that outperforms Kubernetes HPA
+- **Achieve performance targets**: Server-side latency < 0.5 seconds
+- **Service Level Objectives**: Balance performance, cost, and resource utilization
 
-This project implements a scalable, containerized machine learning inference system for image classification using ResNet18. The system features a distributed architecture with intelligent request dispatching, queue management, and is designed for deployment on Kubernetes with custom autoscaling capabilities.
-
-### Key Features
-- **Fast Image Classification**: ResNet18 model with sub-0.5s latency target
-- **Intelligent Request Dispatching**: Asynchronous queue-based request handling with worker pool
-- **Producer-Consumer Architecture**: Decoupled request handling for better scalability
-- **Containerized Deployment**: Docker containers for both ML service and dispatcher
-- **Kubernetes Ready**: Complete K8s deployment configurations with services
-- **Load Testing Framework**: Custom load tester with realistic workload patterns
-- **Performance Monitoring**: Built-in queue size monitoring and response tracking
-
-## Architecture
+## 🏗️ System Architecture
 
 ```
-Load Tester → Dispatcher Service → ML Inference Service
-     ↓              ↓                      ↓
-  [Images]    [Queue + Workers]      [ResNet18 Model]
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Load Tester   │───▶│   Dispatcher    │───▶│    ML App       │
+│ (Workload Gen)  │    │ (Queue + LB)    │    │   (ResNet18)    │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+                                │                        │
+                                ▼                        ▼
+                       ┌─────────────────┐    ┌─────────────────┐
+                       │   Prometheus    │    │Custom Autoscaler│
+                       │   (Metrics)     │    │ (Queue-based)   │
+                       └─────────────────┘    └─────────────────┘
+                                │                        │
+                                ▼                        ▼
+                       ┌─────────────────┐    ┌─────────────────┐
+                       │    Grafana      │    │ Kubernetes API  │
+                       │ (Visualization) │    │   (Scaling)     │
+                       └─────────────────┘    └─────────────────┘
 ```
 
-### Components
+### 🔧 Core Components
 
-1. **ML Inference Service** (`ml_app/`)
-   - FastAPI application serving ResNet18 model
-   - Handles `/predict` endpoint for image classification
-   - Pre-downloaded model weights for faster container startup
-   - Runs on port 8000
+1. **Load Tester**: Generates realistic workload patterns based on course-provided data
+2. **Dispatcher**: Centralized queue for load balancing and request management  
+3. **ML Inference Service**: ResNet18 image classification (CPU-only, 1 core per replica)
+4. **Custom Autoscaler**: Queue-size based scaling that outperforms HPA
+5. **Monitoring Stack**: Prometheus + Grafana for comprehensive observability
 
-2. **Dispatcher Service** (`dispatcher/`)
-   - Request queue management using asyncio
-   - Producer-consumer pattern with 4 background workers
-   - Load balancing across ML service replicas
-   - Runs on port 8001
+## 📋 Project Requirements
 
-3. **Load Tester** (`load_tester.py`)
-   - Configurable workload patterns from `workload.txt`
-   - Supports multiple image formats (PNG, JPG, JPEG)
-   - Statistics tracking for classification results
-   - Built on BarAzmoon framework
+### ✅ Core Requirements
+- [x] **CPU-Only Execution**: Models must run on CPU (no GPU)
+- [x] **Performance Target**: Server-side latency < 0.5 seconds
+- [x] **Minikube Deployment**: Run entire cluster locally
+- [x] **Custom Autoscaler**: Outperform Kubernetes HPA
+- [x] **Resource Constraints**: Each ML replica uses exactly 1 CPU core
+- [x] **Queue-based Architecture**: Centralized dispatcher with load balancing
 
-## Quick Start
+### 📊 Evaluation Criteria
+- [x] **Comparative Analysis**: Custom autoscaler vs HPA (70% and 90% CPU targets)
+- [x] **Metrics Comparison**: 99th percentile latency and CPU core usage
+- [x] **Time-series Plots**: Visual comparison of performance metrics
+- [x] **End-to-End Functionality**: All components working correctly
+
+## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.9+
-- Docker
-- Kubernetes cluster (optional, for production deployment)
-- Git
 
-### Local Development Setup
+- **minikube** (v1.25+) 
+- **kubectl**
+- **Docker** 
+- **Helm** (v3.0+)
+- **Python 3.11+** (for load testing)
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/your-username/elastic-ml-inference.git
-   cd elastic-ml-inference
-   ```
+### 1. Minikube Setup
 
-2. **Set up Python environment**
-   ```bash
-   python -m venv venv
-   # Windows
-   venv\Scripts\activate
-   # macOS/Linux
-   source venv/bin/activate
-   ```
+```bash
+# Start minikube with required resources for course project
+minikube start \
+  --memory=8192 \
+  --cpus=4 \
+  --disk-size=20gb \
+  --kubernetes-version=v1.28.0
 
-3. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   # Install PyTorch (CPU version)
-   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-   ```
+# Enable essential addons
+minikube addons enable metrics-server
+minikube addons enable ingress
 
-### Running Locally
-
-1. **Start ML Inference Service**
-   ```bash
-   cd ml_app
-   uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-   ```
-
-2. **Start Dispatcher Service** (in new terminal)
-   ```bash
-   cd dispatcher
-   uvicorn dispatcher_api:app --host 0.0.0.0 --port 8001 --reload
-   ```
-
-3. **Run Load Test** (in new terminal)
-   ```bash
-   # Update image directory path in load_tester.py
-   python load_tester.py
-   ```
-
-### Docker Deployment
-
-1. **Build Docker images**
-   ```bash
-   # Build ML service
-   docker build -f ml_app/Dockerfile -t ml-app:latest .
-   
-   # Build dispatcher service
-   docker build -f dispatcher/Dockerfile -t dispatcher-app:latest .
-   ```
-
-2. **Run with Docker**
-   ```bash
-   # Run ML service
-   docker run -p 8000:8000 ml-app:latest
-   
-   # Run dispatcher (in new terminal)
-   docker run -p 8001:8001 -e ML_SERVICE_URL=http://host.docker.internal:8000 dispatcher-app:latest
-   ```
-
-### Kubernetes Deployment
-
-1. **Deploy ML service**
-   ```bash
-   kubectl apply -f ml_app/ml-app-deployment.yaml
-   ```
-
-2. **Deploy dispatcher service**
-   ```bash
-   kubectl apply -f dispatcher/dispatcher-deployment.yaml
-   ```
-
-3. **Get service URLs**
-   ```bash
-   # Get dispatcher service URL for load testing
-   kubectl get service dispatcher-service
-   ```
-
-## API Endpoints
-
-### ML Inference Service (`localhost:8000`)
-- `GET /` - Health check
-- `POST /predict` - Image classification
-  - Input: Image file (multipart/form-data)
-  - Output: `{"prediction": "class_name: confidence%"}`
-
-### Dispatcher Service (`localhost:8001`)
-- `GET /` - Health check  
-- `POST /add_to_queue` - Queue image for processing
-  - Input: Image file (multipart/form-data)
-  - Output: `{"prediction": "class_name: confidence%", "queue_size": int}`
-
-## Load Testing
-
-The load tester reads workload patterns from `workload.txt` and sends image classification requests at specified rates.
-
-### Configuration
-- **Workload Pattern**: Edit `workload.txt` with requests per second
-- **Image Directory**: Update `image_dir` path in `load_tester.py`
-- **Endpoint**: Configure dispatcher URL in load tester
-
-### Sample Output
-```
-Image img_001.jpg: Classified as 'golden retriever' with 89.2% confidence
-Worker 1 delivered result to request 12345678
-Test Results: 450/500 successful requests (90.0%)
+# Configure Docker environment
+eval $(minikube docker-env)
 ```
 
-## Performance Characteristics
+### 2. Monitoring Stack (Prometheus + Grafana)
 
-- **Target Latency**: Sub-0.5s response time
-- **Queue Management**: Async queue with 4 concurrent workers
-- **Scaling**: 3 ML service replicas in K8s deployment
-- **Resource Limits**: 1GB memory, 1 CPU core per ML pod
+```bash
+# Add Helm repositories
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
 
-## Project Status
+# Create monitoring namespace
+kubectl create namespace monitoring
 
-### ✅ Completed
-- FastAPI ML inference service with ResNet18
-- Docker containerization for both services
-- Kubernetes deployment configurations
-- Async dispatcher with producer-consumer pattern
-- Load testing framework with statistics
-- Queue-based request management
+# Install Prometheus operator with course-specific configuration
+helm install prometheus prometheus-community/kube-prometheus-stack \
+  --namespace monitoring \
+  --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false \
+  --set prometheus.prometheusSpec.podMonitorSelectorNilUsesHelmValues=false \
+  --set prometheus.prometheusSpec.retention=7d \
+  --set grafana.adminPassword=admin123 \
+  --set grafana.persistence.enabled=true
+```
 
-### 🚧 In Progress
-- Custom autoscaling algorithm
-- Prometheus monitoring integration
-- Redis-based queue for persistence
-- Performance optimization
+**Access Monitoring:**
+```bash
+# Prometheus UI
+kubectl port-forward -n monitoring svc/prometheus-operated 9090:9090 &
 
-### 📋 Planned
-- HPA (Horizontal Pod Autoscaler) comparison
-- Advanced monitoring dashboards
-- Stress testing scenarios
+# Grafana UI (admin/admin123)
+kubectl port-forward -n monitoring svc/prometheus-grafana 3000:80 &
+```
 
-## Configuration
+### 3. Application Deployment
+
+```bash
+# Build Docker images (ensure minikube Docker environment is active)
+docker build -t ml-app:latest -f ml_app/Dockerfile .
+docker build -t dispatcher-app:latest -f dispatcher/Dockerfile .
+docker build -t autoscaler:latest -f custom_autoscaler/Dockerfile .
+
+# Create service account for autoscaler
+kubectl create serviceaccount python-client-sa
+
+# Deploy all components
+kubectl apply -f ml_app/ml-app-deployment.yaml
+kubectl apply -f ml_app/ml-app-servicemonitor.yaml
+kubectl apply -f dispatcher/dispatcher-deployment.yaml
+kubectl apply -f dispatcher/dispatcher-servicemonitor.yaml
+kubectl apply -f custom_autoscaler/autoscaler-role.yaml
+kubectl apply -f custom_autoscaler/autoscaler-deployment.yaml
+```
+
+### 4. Load Testing Setup
+
+```bash
+# Install course-provided load tester
+pip install git+https://github.com/reconfigurable-ml-pipeline/load_tester
+
+# Download sample images (or use your own ImageNet samples)
+git clone https://github.com/EliSchwartz/imagenet-sample-images.git
+
+# Update image directory path in load_tester.py
+# Set endpoint to dispatcher service (port-forward for testing)
+kubectl port-forward svc/dispatcher-service 8001:8001 &
+
+# Run load test with course workload pattern
+python load_tester.py
+```
+
+## 🔬 Experimental Evaluation
+
+### Performance Comparison Protocol
+
+As required by the course, run three experiments to compare autoscaling approaches:
+
+1. **Custom Autoscaler Experiment**
+2. **HPA with 70% CPU Target**  
+3. **HPA with 90% CPU Target**
+
+```bash
+# Deploy HPA configurations (alternative to custom autoscaler)
+kubectl apply -f hpa-70-deployment.yaml  # For 70% CPU experiment
+# OR
+kubectl apply -f hpa-90-deployment.yaml  # For 90% CPU experiment
+
+# Run experiments and collect metrics:
+# - 99th percentile latency
+# - CPU core usage over time
+# - Queue size variations
+# - Scaling events timeline
+```
+
+### 📈 Metrics Collection
+
+**Key Metrics to Track:**
+- `dispatcher_queue_size` - Queue length over time
+- `dispatcher_response_time_seconds` - End-to-end latency
+- `ml_app_cpu_usage_percent` - CPU utilization per replica
+- Pod scaling events and timing
+
+**Expected Results:**
+- Custom autoscaler should demonstrate better latency performance
+- More efficient resource utilization than HPA
+- Faster response to workload changes
+
+## 🎛️ Custom Autoscaler Design
+
+The custom autoscaler implements **queue-size based scaling** with the following logic:
+
+```python
+# Core scaling algorithm
+if queue_size == 0:
+    desired_replicas = MIN_REPLICAS
+elif queue_size > DESIRED_QSIZE:
+    desired_replicas = ceil(current_replicas * (queue_size / DESIRED_QSIZE))
+else:
+    desired_replicas = max(MIN_REPLICAS, ceil(current_replicas * (queue_size / DESIRED_QSIZE)))
+```
+
+**Key Parameters:**
+- **Target Queue Size**: 50 requests
+- **Min/Max Replicas**: 1-6 replicas
+- **Cooldown Period**: 150 seconds
+- **Poll Interval**: 15 seconds
+- **Scaling Trigger**: Queue size deviation from target
+
+## 📊 Monitoring Dashboard Setup
+
+### Grafana Dashboard Panels
+
+Create dashboards with the following visualizations:
+
+1. **Queue Size Over Time** - Primary scaling trigger
+2. **Response Latency (99th percentile)** - Performance metric
+3. **CPU Utilization** - Resource efficiency
+4. **Pod Count Timeline** - Scaling behavior
+5. **Request Throughput** - Load patterns
+6. **Memory Usage** - Resource monitoring
+
+### Sample Queries
+
+```prometheus
+# Queue size metric
+dispatcher_queue_size{job="dispatcher-service"}
+
+# 99th percentile latency
+histogram_quantile(0.99, rate(dispatcher_response_time_seconds_bucket[5m]))
+
+# CPU utilization average
+avg(ml_app_cpu_usage_percent) by (pod)
+```
+
+## 🔧 Configuration
 
 ### Environment Variables
-- `ML_SERVICE_URL`: ML inference service endpoint (default: `http://127.0.0.1:8000`)
-- `PORT`: Service port numbers
-- `PYTHONUNBUFFERED`: Enable real-time logging in K8s
 
-### Resource Configuration
+```bash
+# Dispatcher Configuration
+ML_SERVICE_URL=http://ml-app-service:8000
+PORT=8001
+
+# Custom Autoscaler Settings  
+PROMETHEUS_URL=http://prometheus-operated.monitoring.svc:9090
+DEPLOYMENT_NAME=ml-app-deployment
+DESIRED_QSIZE=50
+MIN_REPLICAS=1
+MAX_REPLICAS=6
+```
+
+### Resource Specifications
+
 ```yaml
+# ML App Resource Requirements (per course specification)
 resources:
   requests:
-    cpu: 200m
-    memory: 512Mi
+    cpu: 1          # Exactly 1 CPU core per replica
+    memory: 1Gi
   limits:
-    cpu: 1000m
+    cpu: 1          # Enforce CPU limit
     memory: 1Gi
 ```
 
-## Troubleshooting
+## 🐛 Troubleshooting
 
 ### Common Issues
-1. **Model download timeout**: ML service pre-downloads ResNet18 weights during build
-2. **Queue bottleneck**: Dispatcher uses 4 workers, adjust based on ML service capacity
-3. **Image format errors**: Ensure test images are PNG, JPG, or JPEG
-4. **Service discovery**: Verify K8s service names match environment variables
 
-### Debugging
-- Check container logs: `kubectl logs -l app=ml-app`
-- Monitor queue size via dispatcher API responses
-- Verify service connectivity: `kubectl get services`
+1. **Images not found in minikube:**
+   ```bash
+   eval $(minikube docker-env)
+   docker images | grep -E "(ml-app|dispatcher|autoscaler)"
+   ```
 
-## Contributing
+2. **Custom metrics not appearing:**
+   ```bash
+   kubectl get servicemonitor
+   kubectl describe servicemonitor dispatcher-monitor
+   ```
 
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open Pull Request
+3. **Autoscaler not scaling:**
+   ```bash
+   kubectl logs -l app=autoscaler -f
+   kubectl describe clusterrolebinding autoscaler-role-binding
+   ```
 
-## License
+4. **Load tester connection issues:**
+   ```bash
+   kubectl port-forward svc/dispatcher-service 8001:8001
+   curl http://localhost:8001/  # Test dispatcher connectivity
+   ```
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+### Performance Optimization
+
+```bash
+# Monitor resource usage
+kubectl top pods
+kubectl top nodes
+
+# Check pod readiness
+kubectl get pods -w
+
+# View scaling events
+kubectl get events --sort-by=.metadata.creationTimestamp
+```
+
+## 📝 Project Deliverables
+
+### 1. Implementation
+- [ ] All components deployed and functional
+- [ ] Custom autoscaler implementation
+- [ ] Monitoring stack configured
+- [ ] Performance targets achieved (< 0.5s latency)
+
+### 2. Experimental Results
+- [ ] Three experiment runs (Custom + HPA 70% + HPA 90%)
+- [ ] 99th percentile latency comparison
+- [ ] CPU core usage comparison  
+- [ ] Time-series plots generated
+
+### 3. Documentation
+- [ ] System architecture documentation
+- [ ] Autoscaler algorithm description
+- [ ] Deployment instructions
+- [ ] Performance analysis report
+
+## 📅 Project Timeline
+
+- **Project Submission**: July 1st, 2025
+- **Presentations**: July 8th-15th, 2025
+
+## 🎓 Academic Context
+
+This project is part of the **Cloud Computing** course at **TU Ilmenau**, focusing on:
+- **Elasticity in cloud services**
+- **Container orchestration with Kubernetes**
+- **Performance optimization and SLOs**
+- **Custom autoscaling algorithm design**
+- **Comparative analysis of scaling strategies**
+
+---
+
+## 📚 Additional Resources
+
+- [Kubernetes HPA Documentation](https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/)
+- [Prometheus Monitoring](https://prometheus.io/docs/introduction/overview/)
+- [Course Load Tester](https://github.com/reconfigurable-ml-pipeline/load_tester)
+- [ImageNet Sample Images](https://github.com/EliSchwartz/imagenet-sample-images)
+
+**Course**: Cloud Computing (SS25) - Prof. Dr. Boris Koldehofe  
+**Institution**: Technische Universität Ilmenau  
+**Department**: Computer Science and Automation - Distributed Systems Group
