@@ -1,7 +1,7 @@
 # Elastic ML Inference Serving
 **Cloud Computing Course Project - TU Ilmenau**
 
-A production-ready machine learning inference serving system with **custom autoscaling** capabilities for Kubernetes. This project implements elastic image classification using ResNet18 with intelligent queue-based load balancing and comprehensive monitoring, designed to outperform standard Kubernetes HPA.
+A machine learning inference serving system with **custom autoscaling** capabilities for Kubernetes. This project implements elastic image classification using ResNet18 with intelligent queue-based load balancing and comprehensive monitoring, designed to outperform standard Kubernetes HPA.
 
 ## 🎯 Project Objectives
 
